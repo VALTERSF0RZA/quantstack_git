@@ -1,0 +1,23 @@
+# Secrets
+secrets/
+*.env
+*.ENV
+*.key
+*.pem
+*.crt
+*.token
+*schwab*
+*.db
+*.sqlite
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Artifacts
+data/
+outputs/
+runs/
+*.log

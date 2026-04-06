@@ -1,0 +1,81 @@
+version: "3.8"
+
+services:
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v25.3.6
+    container_name: redpanda
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - "1G"
+      - --reserve-memory
+      - "0M"
+      - --node-id
+      - "0"
+      - --check=false
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda:9092,PLAINTEXT_HOST://127.0.0.1:19092
+    ports:
+      - "9092:9092"
+      - "19092:19092"
+      - "9644:9644"
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    restart: unless-stopped
+
+  vol_surface:
+    build:
+      context: ./vol_surface
+    container_name: vol_surface
+    depends_on:
+      - redpanda
+    environment:
+      LOG_LEVEL: "INFO"
+
+      INPUT_MODE: "kafka"
+      KAFKA_BROKER: "redpanda:9092"
+      TOPIC_IN: "schwab.raw"
+      TOPIC_OUT: "vol.surface.snapshots"
+      PUBLISH_TO_KAFKA: "1"
+
+      ZMQ_PUB_BIND: "tcp://0.0.0.0:5560"
+      PUBLISH_EVERY_SEC: "2.0"
+      SYMBOL: "SPX"
+      R: "0.0"
+      Q: "0.0"
+    volumes:
+      - /quantstack/vol_surface:/app:Z
+    working_dir: /app
+    command: ["python", "zmq_surface_service.py"]
+    ports:
+      - "5560:5560"
+    restart: unless-stopped
+
+  schwab_ingest:
+    build:
+      context: ./schwab_ingest
+    container_name: schwab_ingest
+    depends_on:
+      - redpanda
+    environment:
+      LOG_LEVEL: "INFO"
+      KAFKA_BROKER: "redpanda:9092"
+      TOPIC_OUT: "schwab.raw"
+      TOKENS_DB: "/data/tokens.db"
+      DOTENV_PATH: "/run/secrets/schwab.env"
+    volumes:
+      - schwab_tokens:/data:Z
+      - /quantstack/secrets/schwab/.env:/run/secrets/schwab.env:ro,Z
+    restart: unless-stopped
+    # If you want it OFF by default, comment it out or use profiles (below)
+
+volumes:
+  redpanda_data: {}
+  schwab_tokens: {}
+

@@ -1,0 +1,53 @@
+version: "3.8"
+
+services:
+  redpanda:
+    image: docker.io/redpandadata/redpanda:latest
+    container_name: redpanda
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - "1G"
+      - --reserve-memory
+      - "0M"
+      - --node-id
+      - "0"
+      - --check=false
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda:9092
+    ports:
+      - "9092:9092"
+      - "9644:9644"
+
+  schwab_ingest:
+    build:
+      context: ./schwab_ingest
+    container_name: schwab_ingest
+    depends_on:
+      - redpanda
+    environment:
+      # tell producer to use the service name in compose network
+      KAFKA_BOOTSTRAP: "redpanda:9092"
+      TOPIC: "l1_ticks"
+      ZMQ_BIND: "tcp://0.0.0.0:5555"
+      DOTENV_PATH: "/run/secrets/schwab_env"
+      TOKENS_DB: "/data/tokens.db"
+    ports:
+      - "5555:5555"
+    secrets:
+      - schwab_env
+    volumes:
+      - schwab_tokens:/data
+
+secrets:
+  schwab_env:
+    file: /quantstack/secrets/schwab/.env
+
+volumes:
+  schwab_tokens:
